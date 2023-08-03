@@ -1,0 +1,78 @@
+name: Build LLVM
+
+on:
+  push:
+    branches:
+      - 'rustc/*'
+  pull_request:
+    branches:
+      - 'rustc/*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - id: cache-key
+        run: echo "cache-key=llvm-$(git rev-parse --short HEAD)-1" >> "$GITHUB_ENV"
+
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v3
+        with:
+          path: llvm-install
+          key: aya-llvm
+
+      - name: Install Tools
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          set -euxo pipefail
+          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | \
+            gpg --dearmor - | \
+            sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main' | \
+            sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
+          sudo apt-get update
+          sudo apt-get -y install cmake ninja-build clang lld
+
+      - name: Configure LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          set -euxo pipefail
+          cmake \
+            -S llvm \
+            -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/llvm-install" \
+            -DLLVM_BUILD_LLVM_DYLIB=ON \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_ENABLE_PROJECTS= \
+            -DLLVM_ENABLE_RUNTIMES= \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DLLVM_LINK_LLVM_DYLIB=ON \
+            -DLLVM_TARGETS_TO_BUILD=BPF \
+            -DLLVM_USE_LINKER=lld
+
+      - name: Install LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          set -euxo pipefail
+          cmake --build build --target install
+
+      - name: Remove all files except llvm-config from llvm-install/bin
+        run: |
+          find "${{ github.workspace }}/llvm-install/bin" ! -name 'llvm-config' -type f -exec rm -f {} +
+
+      - name: Upload Artifacts
+        # if: github.event_name == 'push'
+        uses: actions/upload-artifact@v3
+        with:
+          name: llvm-artifacts
+          path: |
+            ${{ github.workspace }}/llvm-install/**

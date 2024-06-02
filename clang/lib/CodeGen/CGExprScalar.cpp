@@ -40,6 +40,7 @@
 #include "llvm/IR/IntrinsicsPowerPC.h"
 #include "llvm/IR/MatrixBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/TypeSize.h"
 #include <cstdarg>
 #include <optional>
@@ -1774,7 +1775,14 @@ Value *ScalarExprEmitter::VisitConvertVectorExpr(ConvertVectorExpr *E) {
   return Res;
 }
 
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "gc-expr-scalar"
+
 Value *ScalarExprEmitter::VisitMemberExpr(MemberExpr *E) {
+  LLVM_DEBUG(
+    llvm::dbgs() << "VisitMemberExpr: E: " << E->getMemberNameInfo().getName() << "\n";
+  );
+
   if (CodeGenFunction::ConstantEmission Constant = CGF.tryEmitAsConstant(E)) {
     CGF.EmitIgnoredExpr(E->getBase());
     return CGF.emitScalarConstant(Constant, E);
@@ -1789,6 +1797,8 @@ Value *ScalarExprEmitter::VisitMemberExpr(MemberExpr *E) {
 
   return EmitLoadOfLValue(E);
 }
+
+#undef DEBUG_TYPE
 
 Value *ScalarExprEmitter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   TestAndClearIgnoreResultAssign();

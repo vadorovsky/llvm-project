@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm-c/Core.h"
+#include "llvm-c/Types.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -2818,6 +2819,12 @@ unsigned LLVMGetNumArgOperands(LLVMValueRef Instr) {
 }
 
 /*--.. Call and invoke instructions ........................................--*/
+
+LLVMValueRef LLVMInstructionCall(LLVMTypeRef FTy, LLVMValueRef Callee,
+                                 LLVMValueRef *Args, unsigned NumArgs) {
+  return wrap(CallInst::Create(unwrap<FunctionType>(FTy), unwrap<Value>(Callee),
+                               ArrayRef(unwrap(Args), NumArgs)));
+}
 
 unsigned LLVMGetInstructionCallConv(LLVMValueRef Instr) {
   return unwrap<CallBase>(Instr)->getCallingConv();

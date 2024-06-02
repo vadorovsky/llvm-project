@@ -41,6 +41,7 @@
 #include "llvm/IR/MatrixBuilder.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/ConvertUTF.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -1524,6 +1525,9 @@ static QualType getConstantExprReferredType(const FullExpr *E,
   return cast<CallExpr>(SE)->getCallReturnType(Ctx)->getPointeeType();
 }
 
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "gc-expr"
+
 LValue CodeGenFunction::EmitLValueHelper(const Expr *E,
                                          KnownNonNull_t IsKnownNonNull) {
   ApplyDebugLocation DL(*this, E);
@@ -1643,6 +1647,9 @@ LValue CodeGenFunction::EmitLValueHelper(const Expr *E,
   case Expr::CXXThisExprClass:
     return MakeAddrLValue(LoadCXXThisAddress(), E->getType());
   case Expr::MemberExprClass:
+    LLVM_DEBUG(
+      llvm::dbgs() << "EmitLValueHelper: Expr::MemberExprClass: Expr: " << E->getStmtClassName() << "\n";
+    );
     return EmitMemberExpr(cast<MemberExpr>(E));
   case Expr::CompoundLiteralExprClass:
     return EmitCompoundLiteralLValue(cast<CompoundLiteralExpr>(E));
@@ -1677,6 +1684,8 @@ LValue CodeGenFunction::EmitLValueHelper(const Expr *E,
     return EmitCoyieldLValue(cast<CoyieldExpr>(E));
   }
 }
+
+#undef DEBUG_TYPE
 
 /// Given an object of the given canonical type, can we safely copy a
 /// value out of it based on its initializer?
@@ -4586,7 +4595,16 @@ EmitExtVectorElementExpr(const ExtVectorElementExpr *E) {
                                   Base.getBaseInfo(), TBAAAccessInfo());
 }
 
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "gc-expr"
+
 LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
+  LLVM_DEBUG(
+    llvm::dbgs() << "EmitMemberExpr: E:";
+    E->getMemberNameInfo().getName();
+    llvm::dbgs() << "\n";
+  );
+
   if (DeclRefExpr *DRE = tryToConvertMemberExprToDeclRefExpr(*this, E)) {
     EmitIgnoredExpr(E->getBase());
     return EmitDeclRefLValue(DRE);
@@ -4614,6 +4632,9 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
 
   NamedDecl *ND = E->getMemberDecl();
   if (auto *Field = dyn_cast<FieldDecl>(ND)) {
+    LLVM_DEBUG(
+      llvm::dbgs() << "EmitMemberExpr: Field: " << Field->getName() << "\n";
+    );
     LValue LV = EmitLValueForField(BaseLV, Field);
     setObjCGCLValueClass(getContext(), E, LV);
     if (getLangOpts().OpenMP) {
@@ -4633,6 +4654,8 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
 
   llvm_unreachable("Unhandled member declaration!");
 }
+
+#undef DEBUG_TYPE
 
 /// Given that we are currently emitting a lambda, emit an l-value for
 /// one of its members.
@@ -4668,13 +4691,25 @@ LValue CodeGenFunction::EmitLValueForLambdaField(const FieldDecl *Field) {
   return EmitLValueForLambdaField(Field, CXXABIThisValue);
 }
 
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "gc-expr"
+
 /// Get the field index in the debug info. The debug info structure/union
 /// will ignore the unnamed bitfields.
 unsigned CodeGenFunction::getDebugInfoFIndex(const RecordDecl *Rec,
                                              unsigned FieldIndex) {
   unsigned I = 0, Skipped = 0;
 
+  LLVM_DEBUG(
+    llvm::errs() << "getDebugInfoFIndex: Rec: ";
+    Rec->printName(llvm::errs());
+    llvm::errs() << "\n";
+  );
+
   for (auto *F : Rec->getDefinition()->fields()) {
+    LLVM_DEBUG(
+      llvm::errs() << "Field: " << F->getName() << "\n";
+    );
     if (I == FieldIndex)
       break;
     if (F->isUnnamedBitfield())
@@ -4684,6 +4719,8 @@ unsigned CodeGenFunction::getDebugInfoFIndex(const RecordDecl *Rec,
 
   return FieldIndex - Skipped;
 }
+
+#undef DEBUG_TYPE
 
 /// Get the address of a zero-sized field within a record. The resulting
 /// address doesn't necessarily have the right type.
@@ -4714,6 +4751,9 @@ static Address emitAddrOfFieldStorage(CodeGenFunction &CGF, Address base,
   return CGF.Builder.CreateStructGEP(base, idx, field->getName());
 }
 
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "gc-expr"
+
 static Address emitPreserveStructAccess(CodeGenFunction &CGF, LValue base,
                                         Address addr, const FieldDecl *field) {
   const RecordDecl *rec = field->getParent();
@@ -4723,6 +4763,11 @@ static Address emitPreserveStructAccess(CodeGenFunction &CGF, LValue base,
   unsigned idx =
       CGF.CGM.getTypes().getCGRecordLayout(rec).getLLVMFieldNo(field);
 
+  LLVM_DEBUG(
+    llvm::dbgs() << "emitPreserveStructAccess: Field: ";
+    field->print(llvm::errs());
+    llvm::dbgs() << "\n"
+  );
   return CGF.Builder.CreatePreserveStructAccessIndex(
       addr, idx, CGF.getDebugInfoFIndex(rec, field->getFieldIndex()), DbgInfo);
 }
@@ -4749,8 +4794,14 @@ static bool hasAnyVptr(const QualType Type, const ASTContext &Context) {
 LValue CodeGenFunction::EmitLValueForField(LValue base,
                                            const FieldDecl *field) {
   LValueBaseInfo BaseInfo = base.getBaseInfo();
+  LLVM_DEBUG(
+    llvm::errs() << "EmitLValueForField: field: ";
+    field->getName();
+    llvm::errs() << "\n";
+  );
 
   if (field->isBitField()) {
+    LLVM_DEBUG(llvm::errs() << "EmitLValueForField: isBitField");
     const CGRecordLayout &RL =
         CGM.getTypes().getCGRecordLayout(field->getParent());
     const CGBitFieldInfo &Info = RL.getBitFieldInfo(field);
@@ -4774,6 +4825,7 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
       } else {
         llvm::DIType *DbgInfo = getDebugInfo()->getOrCreateRecordType(
             getContext().getRecordType(rec), rec->getLocation());
+        LLVM_DEBUG(llvm::errs() << "EmitLValueForField: call CreatePreserveStructAccessIndex\n");
         Addr = Builder.CreatePreserveStructAccessIndex(
             Addr, Idx, getDebugInfoFIndex(rec, field->getFieldIndex()),
             DbgInfo);
@@ -4853,6 +4905,7 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
 
   unsigned RecordCVR = base.getVRQualifiers();
   if (rec->isUnion()) {
+    LLVM_DEBUG(llvm::errs() << "EmitLValueForField: isUnion\n");
     // For unions, there is no pointer adjustment.
     if (CGM.getCodeGenOpts().StrictVTablePointers &&
         hasAnyVptr(FieldType, getContext()))
@@ -4874,12 +4927,14 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
     if (FieldType->isReferenceType())
       addr = addr.withElementType(CGM.getTypes().ConvertTypeForMem(FieldType));
   } else {
+    LLVM_DEBUG(llvm::errs() << "EmitLValueForField: !isUnion\n");
     if (!IsInPreservedAIRegion &&
         (!getDebugInfo() || !rec->hasAttr<BPFPreserveAccessIndexAttr>()))
       // For structs, we GEP to the field that the record layout suggests.
       addr = emitAddrOfFieldStorage(*this, addr, field);
     else
       // Remember the original struct field index
+      LLVM_DEBUG(llvm::errs() << "EmitLValueForField: call emitPreserveStructAccess\n");
       addr = emitPreserveStructAccess(*this, base, addr, field);
   }
 
@@ -4912,6 +4967,8 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
 
   return LV;
 }
+
+#undef DEBUG_TYPE
 
 LValue
 CodeGenFunction::EmitLValueForFieldInitialization(LValue Base,

@@ -3473,6 +3473,12 @@ LLVMValueRef LLVMIsATerminatorInst(LLVMValueRef Inst);
  */
 
 /**
+ * Create a new instruction call.
+ */
+ LLVMValueRef LLVMInstructionCall(LLVMTypeRef FTy, LLVMValueRef Callee,
+                                  LLVMValueRef *Args, unsigned NumArgs);
+
+/**
  * Obtain the argument count for a call instruction.
  *
  * This expects an LLVMValueRef that corresponds to a llvm::CallInst,

@@ -29,6 +29,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Debug.h"
 #include <cassert>
 #include <cstdint>
 #include <optional>
@@ -1277,9 +1278,23 @@ Value *IRBuilderBase::CreatePreserveUnionAccessIndex(
   return Fn;
 }
 
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "preserve-access-index"
+
 Value *IRBuilderBase::CreatePreserveStructAccessIndex(
     Type *ElTy, Value *Base, unsigned Index, unsigned FieldIndex,
     MDNode *DbgInfo) {
+  LLVM_DEBUG(
+    dbgs() << "PreserveStructAccessIndex: Type: ";
+    ElTy->print(dbgs());
+    dbgs() << ", Value: ";
+    Base->print(dbgs());
+    dbgs() << ", Index: " << Index << ", FieldIndex: " << FieldIndex << ", DbgInfo: ";
+    DbgInfo->print(dbgs());
+    DbgInfo->printTree(dbgs());
+    DbgInfo->printAsOperand(dbgs());
+    dbgs() << "\n"
+  );
   auto *BaseType = Base->getType();
   assert(isa<PointerType>(BaseType) &&
          "Invalid Base ptr type for preserve.struct.access.index.");
@@ -1293,6 +1308,12 @@ Value *IRBuilderBase::CreatePreserveStructAccessIndex(
   Function *FnPreserveStructAccessIndex = Intrinsic::getDeclaration(
       M, Intrinsic::preserve_struct_access_index, {ResultType, BaseType});
 
+  LLVM_DEBUG(
+    dbgs()
+      << "Intrinsic::preserve_struct_access_index: "
+      << Intrinsic::preserve_struct_access_index << "\n";
+  );
+
   Value *DIIndex = getInt32(FieldIndex);
   CallInst *Fn = CreateCall(FnPreserveStructAccessIndex,
                             {Base, GEPIndex, DIIndex});
@@ -1301,8 +1322,16 @@ Value *IRBuilderBase::CreatePreserveStructAccessIndex(
   if (DbgInfo)
     Fn->setMetadata(LLVMContext::MD_preserve_access_index, DbgInfo);
 
+  LLVM_DEBUG(
+    dbgs() << "PreserveStructAccessIndex: result: ";
+    Fn->print(dbgs());
+    dbgs() << "\n";
+  );
+
   return Fn;
 }
+
+#undef DEBUG_TYPE
 
 Value *IRBuilderBase::createIsFPClass(Value *FPNum, unsigned Test) {
   ConstantInt *TestV = getInt32(Test);

@@ -897,6 +897,8 @@ Bug Fixes in This Version
 - No longer return ``false`` for ``noexcept`` expressions involving a
   ``delete`` which resolves to a destroying delete but the type of the object
   being deleted has a potentially throwing destructor (#GH118660).
+- Clang now outputs correct values when #embed data contains bytes with negative
+  signed char values (#GH102798).
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1053,6 +1055,9 @@ Bug Fixes to C++ Support
   template parameter. Now, such expression can be used with ``static_assert`` and ``constexpr``. (#GH123498)
 - Correctly determine the implicit constexprness of lambdas in dependent contexts. (#GH97958) (#GH114234)
 - Fix that some dependent immediate expressions did not cause immediate escalation (#GH119046)
+- Fixed a substitution bug in transforming CTAD aliases when the type alias contains a non-pack template argument
+  corresponding to a pack parameter (#GH124715)
+- Clang is now better at keeping track of friend function template instance contexts. (#GH55509)
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1264,6 +1269,8 @@ CUDA Support
 
 AIX Support
 ^^^^^^^^^^^
+- Fixed the ``-print-runtime-dir`` option.
+- Enable continuous profile syncing feature on AIX.
 
 NetBSD Support
 ^^^^^^^^^^^^^^

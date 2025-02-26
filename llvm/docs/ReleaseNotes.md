@@ -116,6 +116,8 @@ Changes to the LLVM IR
 Changes to LLVM infrastructure
 ------------------------------
 
+ * Two methods that use Instruction pointers as code positions (moveBefore, getFirstNonPHI) have been deprecated in favour of overloads and variants that use `BasicBlock::iterator`s instead. The pointer-flavoured methods will be removed in a future release. This work is part of the [RemoveDIs](https://llvm.org/docs/RemoveDIsDebugInfo.html) project, the documentation for which contains instructions for updating call-sites using the deprecated methods.
+
 Changes to building LLVM
 ------------------------
 
@@ -151,8 +153,22 @@ Changes to the AArch64 Backend
 
 * Added support for the FUJITSU-MONAKA CPU.
 
+* Updated feature dependency in Armv9.6 for FEAT_FAMINMAX, FEAT_LUT and
+  FEAT_FP8, now they depend only on FEAT_NEON.
+
 Changes to the AMDGPU Backend
 -----------------------------
+
+* Initial support for gfx950
+
+* Improved ``llvm.memcpy``, ``llvm.memmove`` and ``llvm.memset`` lowering
+
+* Fixed expansion of 64-bit flat address space ``atomicrmw`` and
+  ``cmpxchg`` operations which may access private
+  memory. `noalias.addrspace` metadat may be used to avoid the
+  expansion if the target address is known to not be on the stack.
+
+* Fix compile failures when emitting unreachable functions.
 
 * Removed `llvm.amdgcn.flat.atomic.fadd` and
   `llvm.amdgcn.global.atomic.fadd` intrinsics. Users should use the
@@ -247,7 +263,23 @@ Changes to the PowerPC Backend
 ------------------------------
 
 * The Linux `ppc64` LLC default cpu is updated from `ppc` to `ppc64`.
-* The AIX LLC default cpu is updated from `generic` to `pwr7`.
+* Replaced PPCMergeStringPool with GlobalMerge.
+* Disabled vsx and altivec when -msoft-float is used.
+* Added support for -mcpu=pwr11 -mtune=pwr11.
+* Implemented BCD assist builtins.
+* Expanded global named register support.
+* Updated to use tablegen's MatchRegisterName().
+* Fixed saving of Link Register when using ROP Protect.
+* Fixed SUBREG_TO_REG handling in the RegisterCoalescer.
+* Fixed data layout alignment of i128 to 16.
+* Fixed codegen for transparent_union function parameters.
+* Added an error for incorrect use of memory operands.
+* Other various bug fixes and codegen improvements.
+
+AIX Specific:
+* LLC default cpu is updated from `generic` to `pwr7`.
+* Fixed handling in emitGlobalConstantImpl to emit aliases to subobjects at proper offsets.
+* Enabled aggressive merging of constants to reduce TOC entries.
 
 Changes to the RISC-V Backend
 -----------------------------
@@ -462,6 +494,10 @@ Changes to the LLVM tools
 
 * llvm-objcopy now prints the correct file path in the error message when the output file specified by `--dump-section` cannot be opened.
 
+* llvm-cxxfilt now supports demangling call expressions encoded using `cp` instead of `cl`.
+
+* llvm-objdump now supports printing the file header, load section header and auxiliary header for XCOFF object files under the ``--private-headers`` option.
+
 Changes to LLDB
 ---------------------------------
 
@@ -613,6 +649,14 @@ Changes to BOLT
 
 Changes to Sanitizers
 ---------------------
+
+Changes to the Profile Runtime
+------------------------------
+
+* On platforms where ``atexit``-registered functions are not called when
+  a DSO is ``dlclose``'d, a mechanism is added that implements this
+  missing functionality for calls to ``atexit`` in the profile runtime.
+  [This is currently only enabled on AIX](https://github.com/llvm/llvm-project/pull/102940).
 
 Other Changes
 -------------

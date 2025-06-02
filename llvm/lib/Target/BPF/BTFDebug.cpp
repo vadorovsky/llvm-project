@@ -975,11 +975,21 @@ void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
   if (Tag != dwarf::DW_TAG_structure_type || CTy->isForwardDecl())
     return;
 
-  // Visit all struct members to ensure pointee type is visited
+  // Visit all struct members to ensure their types are visited.
   const DINodeArray Elements = CTy->getElements();
+  // In Aya/Rust, BPF maps are wrapped into nested types. Such wrapper types
+  // always have only one element. When encountering them, we need to visit its
+  // (only) element with an assumption that it might contain either an another
+  // wrapper, or an actual map struct.
+  const bool IsAWrapperType = Elements.size() == 1;
   for (const auto *Element : Elements) {
     const auto *MemberType = cast<DIDerivedType>(Element);
-    visitTypeEntry(MemberType->getBaseType());
+    if (IsAWrapperType) {
+      // Visit a type which is either a map definition or an another wrapper.
+      visitMapDefType(MemberType->getBaseType(), TypeId);
+    } else
+      // Visit a pointee type of a map attribute.
+      visitTypeEntry(MemberType->getBaseType());
   }
 
   // Visit this type, struct or a const/typedef/volatile/restrict type

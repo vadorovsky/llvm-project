@@ -18,17 +18,23 @@
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
+#include <cstddef>
 #include <optional>
 
 using namespace llvm;
+
+#define DEBUG_TYPE "btf"
 
 static const char *BTFKindStr[] = {
 #define HANDLE_BTF_KIND(ID, NAME) "BTF_KIND_" #NAME,
@@ -670,6 +676,7 @@ int BTFDebug::genBTFTypeTags(const DIDerivedType *DTy, int BaseTypeId) {
 /// Handle structure/union types.
 void BTFDebug::visitStructType(const DICompositeType *CTy, bool IsStruct,
                                uint32_t &TypeId) {
+  LLVM_DEBUG(dbgs() << "visiting struct `" << CTy->getName() << "`\n");
   const DINodeArray Elements = CTy->getElements();
   uint32_t VLen = Elements.size();
   if (VLen > BTF::MAX_VLEN)
@@ -687,6 +694,7 @@ void BTFDebug::visitStructType(const DICompositeType *CTy, bool IsStruct,
 
   auto TypeEntry =
       std::make_unique<BTFTypeStruct>(CTy, IsStruct, HasBitField, VLen);
+  LLVM_DEBUG(dbgs() << "adding struct `" << CTy->getName() << "` to be used for fixups\n");
   StructTypes.push_back(TypeEntry.get());
   TypeId = addType(std::move(TypeEntry), CTy);
 
@@ -697,6 +705,7 @@ void BTFDebug::visitStructType(const DICompositeType *CTy, bool IsStruct,
   int FieldNo = 0;
   for (const auto *Element : Elements) {
     const auto Elem = cast<DIDerivedType>(Element);
+    LLVM_DEBUG(dbgs() << "about to visit field `" << Elem->getName() << "`\n");
     visitTypeEntry(Elem);
     processDeclAnnotations(Elem->getAnnotations(), TypeId, FieldNo);
     FieldNo++;
@@ -773,6 +782,7 @@ void BTFDebug::visitEnumType(const DICompositeType *CTy, uint32_t &TypeId) {
 /// Handle structure/union forward declarations.
 void BTFDebug::visitFwdDeclType(const DICompositeType *CTy, bool IsUnion,
                                 uint32_t &TypeId) {
+  LLVM_DEBUG(dbgs() << "visiting forward declaration `" << CTy->getName() << "`\n");
   auto TypeEntry = std::make_unique<BTFTypeFwd>(CTy->getName(), IsUnion);
   TypeId = addType(std::move(TypeEntry), CTy);
 }
@@ -780,6 +790,7 @@ void BTFDebug::visitFwdDeclType(const DICompositeType *CTy, bool IsUnion,
 /// Handle structure, union, array and enumeration types.
 void BTFDebug::visitCompositeType(const DICompositeType *CTy,
                                   uint32_t &TypeId) {
+  LLVM_DEBUG(dbgs() << "visiting composite type `" << CTy->getName() << "`\n");
   auto Tag = CTy->getTag();
   if (Tag == dwarf::DW_TAG_structure_type || Tag == dwarf::DW_TAG_union_type) {
     // Handle forward declaration differently as it does not have members.
@@ -794,19 +805,23 @@ void BTFDebug::visitCompositeType(const DICompositeType *CTy,
 }
 
 bool BTFDebug::IsForwardDeclCandidate(const DIType *Base) {
+  LLVM_DEBUG(dbgs() << "is forward decl candidate `" << Base->getName() << "`\n");
   if (const auto *CTy = dyn_cast<DICompositeType>(Base)) {
     auto CTag = CTy->getTag();
     if ((CTag == dwarf::DW_TAG_structure_type ||
          CTag == dwarf::DW_TAG_union_type) &&
         !CTy->getName().empty() && !CTy->isForwardDecl())
+      LLVM_DEBUG(dbgs() << "type `" << CTy->getName() << "` is a forward declaration\n");
       return true;
   }
+  LLVM_DEBUG(dbgs() << "type `" << Base->getName() << "` is NOT a forward declaration\n");
   return false;
 }
 
 /// Handle pointer, typedef, const, volatile, restrict and member types.
 void BTFDebug::visitDerivedType(const DIDerivedType *DTy, uint32_t &TypeId,
                                 bool CheckPointer, bool SeenPointer) {
+  LLVM_DEBUG(dbgs() << "visiting derived type `" << DTy->getName() << "`\n");
   unsigned Tag = DTy->getTag();
 
   if (Tag == dwarf::DW_TAG_atomic_type)
@@ -827,6 +842,7 @@ void BTFDebug::visitDerivedType(const DIDerivedType *DTy, uint32_t &TypeId,
         /// pointee type will be replaced with either a real type or
         /// a forward declaration.
         auto TypeEntry = std::make_unique<BTFTypeDerived>(DTy, Tag, true);
+        LLVM_DEBUG(dbgs() << "adding a fixup for `" << Base->getName() << "`\n");
         auto &Fixup = FixupDerivedTypes[cast<DICompositeType>(Base)];
         Fixup.push_back(std::make_pair(DTy, TypeEntry.get()));
         TypeId = addType(std::move(TypeEntry), DTy);
@@ -874,6 +890,7 @@ void BTFDebug::visitDerivedType(const DIDerivedType *DTy, uint32_t &TypeId,
 /// will be generated.
 void BTFDebug::visitTypeEntry(const DIType *Ty, uint32_t &TypeId,
                               bool CheckPointer, bool SeenPointer) {
+  LLVM_DEBUG(dbgs() << "visiting type...\n");
   if (!Ty || DIToIdMap.find(Ty) != DIToIdMap.end()) {
     TypeId = DIToIdMap[Ty];
 
@@ -932,16 +949,20 @@ void BTFDebug::visitTypeEntry(const DIType *Ty, uint32_t &TypeId,
     return;
   }
 
-  if (const auto *BTy = dyn_cast<DIBasicType>(Ty))
+  if (const auto *BTy = dyn_cast<DIBasicType>(Ty)) {
+    LLVM_DEBUG(dbgs() << "found basic type\n");
     visitBasicType(BTy, TypeId);
-  else if (const auto *STy = dyn_cast<DISubroutineType>(Ty))
+  } else if (const auto *STy = dyn_cast<DISubroutineType>(Ty)) {
+    LLVM_DEBUG(dbgs() << "found subroutine type\n");
     visitSubroutineType(STy, false, std::unordered_map<uint32_t, StringRef>(),
                         TypeId);
-  else if (const auto *CTy = dyn_cast<DICompositeType>(Ty))
+  } else if (const auto *CTy = dyn_cast<DICompositeType>(Ty)) {
+    LLVM_DEBUG(dbgs() << "found composite type `" << CTy->getName() << "`\n");
     visitCompositeType(CTy, TypeId);
-  else if (const auto *DTy = dyn_cast<DIDerivedType>(Ty))
+  } else if (const auto *DTy = dyn_cast<DIDerivedType>(Ty)) {
+    LLVM_DEBUG(dbgs() << "found derived type\n");
     visitDerivedType(DTy, TypeId, CheckPointer, SeenPointer);
-  else
+  } else
     llvm_unreachable("Unknown DIType");
 }
 
@@ -951,7 +972,9 @@ void BTFDebug::visitTypeEntry(const DIType *Ty) {
 }
 
 void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
+  LLVM_DEBUG(dbgs() << "visiting map def `" << Ty->getName() << "`\n");
   if (!Ty || DIToIdMap.find(Ty) != DIToIdMap.end()) {
+    LLVM_DEBUG(dbgs() << "fixing up map id\n");
     TypeId = DIToIdMap[Ty];
     return;
   }
@@ -968,18 +991,41 @@ void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
   }
 
   const auto *CTy = dyn_cast<DICompositeType>(Ty);
-  if (!CTy)
+  if (!CTy) {
+    LLVM_DEBUG(dbgs() << "map `" << CTy->getName() << "` is not a composite type\n");
     return;
+  }
+  LLVM_DEBUG(dbgs() << "map `" << CTy->getName() << "` is a composite type\n");
 
   auto Tag = CTy->getTag();
-  if (Tag != dwarf::DW_TAG_structure_type || CTy->isForwardDecl())
+  if (Tag != dwarf::DW_TAG_structure_type || CTy->isForwardDecl()) {
+    LLVM_DEBUG(dbgs() << "map `" << CTy->getName() << "` is not a struct or is forward\n");
     return;
+  }
 
   // Visit all struct members to ensure pointee type is visited
   const DINodeArray Elements = CTy->getElements();
-  for (const auto *Element : Elements) {
-    const auto *MemberType = cast<DIDerivedType>(Element);
-    visitTypeEntry(MemberType->getBaseType());
+  // In Rust, BPF maps are wrapped into wrapper types - ...
+  // and `UnsafeCell`[0], which guarantee ...
+  //
+  // Such wrappers always have only one element.
+  //
+  // [0] https://doc.rust-lang.org/std/cell/struct.UnsafeCell.html
+  int ElementsCount = Elements.size();
+  LLVM_DEBUG(dbgs() << "map `" << CTy->getName() << "` has " << ElementsCount << " elements\n");
+  if (Elements.size() == 1) {
+    LLVM_DEBUG(dbgs() << "`" << CTy->getName() << "` is a wrapper type\n");
+    for (const auto *Element : Elements) {
+      const auto *MemberType = cast<DIDerivedType>(Element);
+      const auto *MemberBaseType = MemberType->getBaseType();
+      visitMapDefType(MemberBaseType, TypeId);
+    }
+  } else {
+    for (const auto *Element : Elements) {
+      const auto *MemberType = cast<DIDerivedType>(Element);
+      LLVM_DEBUG(dbgs() << "about to visit element `" << MemberType->getName() << "` of map `" << CTy->getName() << "`\n");
+      visitTypeEntry(MemberType->getBaseType());
+    }
   }
 
   // Visit this type, struct or a const/typedef/volatile/restrict type
@@ -1635,9 +1681,12 @@ void BTFDebug::endModule() {
     StringRef TypeName = CTy->getName();
     bool IsUnion = CTy->getTag() == dwarf::DW_TAG_union_type;
 
+    LLVM_DEBUG(dbgs() << "performing a fixup for `" << TypeName << "`\n");
+
     // Search through struct types
     uint32_t StructTypeId = 0;
     for (const auto &StructType : StructTypes) {
+      LLVM_DEBUG(dbgs() << "searching for a fixup, struct `" << StructType->getName() << "`\n");
       if (StructType->getName() == TypeName) {
         StructTypeId = StructType->getId();
         break;

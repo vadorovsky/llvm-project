@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ;
 ; Source:
 ;   struct s1 {
@@ -21,49 +25,20 @@ entry:
   ret i32 0, !dbg !27
 }
 
-; CHECK:             .long   0                       # BTF_KIND_PTR(id = 1)
-; CHECK-NEXT:        .long   33554432                # 0x2000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   1                       # BTF_KIND_STRUCT(id = 2)
-; CHECK-NEXT:        .long   67108866                # 0x4000002
-; CHECK-NEXT:        .long   16
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   0                       # 0x0
-; CHECK-NEXT:        .long   7
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   64                      # 0x40
-; CHECK-NEXT:        .long   0                       # BTF_KIND_STRUCT(id = 3)
-; CHECK-NEXT:        .long   67108865                # 0x4000001
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   10
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   0                       # 0x0
-; CHECK-NEXT:        .long   13                      # BTF_KIND_INT(id = 4)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   0                       # BTF_KIND_PTR(id = 5)
-; CHECK-NEXT:        .long   33554432                # 0x2000000
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   0                       # BTF_KIND_STRUCT(id = 6)
-; CHECK-NEXT:        .long   67108865                # 0x4000001
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   17
-; CHECK-NEXT:        .long   7
-; CHECK-NEXT:        .long   0                       # 0x0
-; CHECK-NEXT:        .long   20                      # BTF_KIND_INT(id = 7)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   16777280                # 0x1000040
-
-; CHECK:             .ascii  "s1"                    # string offset=1
-; CHECK:             .ascii  "a1"                    # string offset=4
-; CHECK:             .ascii  "b1"                    # string offset=7
-; CHECK:             .ascii  "A1"                    # string offset=10
-; CHECK:             .ascii  "int"                   # string offset=13
-; CHECK:             .ascii  "B1"                    # string offset=17
-; CHECK:             .ascii  "long int"              # string offset=20
+; CHECK-BTF:             [1] PTR '(anon)' type_id=2
+; CHECK-BTF-NEXT:        [2] STRUCT 's1' size=16 vlen=2
+; CHECK-BTF-NEXT:                'a1' type_id=3 bits_offset=0
+; CHECK-BTF-NEXT:                'b1' type_id=5 bits_offset=64
+; CHECK-BTF-NEXT:        [3] STRUCT '(anon)' size=4 vlen=1
+; CHECK-BTF-NEXT:                'A1' type_id=4 bits_offset=0
+; CHECK-BTF-NEXT:        [4] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [5] PTR '(anon)' type_id=6
+; CHECK-BTF-NEXT:        [6] STRUCT '(anon)' size=8 vlen=1
+; CHECK-BTF-NEXT:                'B1' type_id=7 bits_offset=0
+; CHECK-BTF-NEXT:        [7] INT 'long int' size=8 bits_offset=0 nr_bits=64 encoding=SIGNED
+; CHECK-BTF-NEXT:        [8] FUNC_PROTO '(anon)' ret_type_id=4 vlen=1
+; CHECK-BTF-NEXT:                's1' type_id=1
+; CHECK-BTF-NEXT:        [9] FUNC 'f1' type_id=8 linkage=global
 
 
 ; Function Attrs: nounwind readnone speculatable willreturn

@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ; Source:
 ;   struct tt;
 ;   struct s1 { const struct tt *mp; };
@@ -36,32 +40,24 @@ entry:
   ret i32 %0, !dbg !42
 }
 
-; CHECK:        .long   0                       # BTF_KIND_CONST(id = 4)
-; CHECK-NEXT:   .long   167772160               # 0xa000000
-; CHECK-NEXT:   .long   10
-
-; CHECK:        .long   60                      # BTF_KIND_STRUCT(id = 9)
-; CHECK-NEXT:   .long   67108865                # 0x4000001
-; CHECK-NEXT:   .long   8
-; CHECK-NEXT:   .long   63
-; CHECK-NEXT:   .long   4
-; CHECK-NEXT:   .long   0                       # 0x0
-
-; CHECK:        .long   66                      # BTF_KIND_STRUCT(id = 10)
-; CHECK-NEXT:   .long   67108866                # 0x4000002
-; CHECK-NEXT:   .long   8
-; CHECK-NEXT:   .long   69
-; CHECK-NEXT:   .long   6
-; CHECK-NEXT:   .long   0                       # 0x0
-; CHECK-NEXT:   .long   72
-; CHECK-NEXT:   .long   6
-; CHECK-NEXT:   .long   32                      # 0x20
-
-; CHECK:        .ascii  "s2"                    # string offset=60
-; CHECK:        .ascii  "m3"                    # string offset=63
-; CHECK:        .ascii  "tt"                    # string offset=66
-; CHECK:        .ascii  "m1"                    # string offset=69
-; CHECK:        .ascii  "m2"                    # string offset=72
+; CHECK-BTF:             [1] PTR '(anon)' type_id=2
+; CHECK-BTF-NEXT:        [2] STRUCT 's1' size=8 vlen=1
+; CHECK-BTF-NEXT:                'mp' type_id=3 bits_offset=0
+; CHECK-BTF-NEXT:        [3] PTR '(anon)' type_id=4
+; CHECK-BTF-NEXT:        [4] CONST '(anon)' type_id=10
+; CHECK-BTF-NEXT:        [5] FUNC_PROTO '(anon)' ret_type_id=6 vlen=1
+; CHECK-BTF-NEXT:                'arg' type_id=1
+; CHECK-BTF-NEXT:        [6] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [7] FUNC 'test1' type_id=5 linkage=global
+; CHECK-BTF-NEXT:        [8] PTR '(anon)' type_id=9
+; CHECK-BTF-NEXT:        [9] STRUCT 's2' size=8 vlen=1
+; CHECK-BTF-NEXT:                'm3' type_id=4 bits_offset=0
+; CHECK-BTF-NEXT:        [10] STRUCT 'tt' size=8 vlen=2
+; CHECK-BTF-NEXT:                'm1' type_id=6 bits_offset=0
+; CHECK-BTF-NEXT:                'm2' type_id=6 bits_offset=32
+; CHECK-BTF-NEXT:        [11] FUNC_PROTO '(anon)' ret_type_id=6 vlen=1
+; CHECK-BTF-NEXT:                'arg' type_id=8
+; CHECK-BTF-NEXT:        [12] FUNC 'test2' type_id=11 linkage=global
 
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2

@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ;
 ; Source code:
 ;   extern int foo(void);
@@ -22,50 +26,13 @@ entry:
 }
 declare !dbg !4 dso_local i32 @foo() local_unnamed_addr #2
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   88
-; CHECK-NEXT:        .long   88
-; CHECK-NEXT:        .long   64
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 1)
-; CHECK-NEXT:        .long   218103808               # 0xd000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   1                       # BTF_KIND_INT(id = 2)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   5                       # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326593               # 0xc000001
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 4)
-; CHECK-NEXT:        .long   218103808               # 0xd000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   54                      # BTF_KIND_FUNC(id = 5)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 6)
-; CHECK-NEXT:        .long   218103808               # 0xd000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   60                      # BTF_KIND_FUNC(id = 7)
-; CHECK-NEXT:        .long   201326594               # 0xc000002
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "test2"                 # string offset=5
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=11
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/tmp/home/yhs/work/tests/bugs/test.c" # string offset=17
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "test1"                 # string offset=54
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "foo"                   # string offset=60
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [2] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [3] FUNC 'test2' type_id=1 linkage=global
+; CHECK-BTF-NEXT:        [4] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [5] FUNC 'test1' type_id=4 linkage=static
+; CHECK-BTF-NEXT:        [6] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [7] FUNC 'foo' type_id=6 linkage=extern
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { noinline nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

@@ -1,6 +1,16 @@
 ; RUN: opt -O2 -mtriple=bpf-pc-linux -S -o %t1 %s
-; RUN: llc -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mattr=+alu32 -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t2 %t1
+; RUN: llvm-objcopy --dump-section='.BTF'=%t3 %t2
+; RUN: %python %p/print_btf.py %t3 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t2 %t1
+; RUN: llvm-objcopy --dump-section='.BTF'=%t3 %t2
+; RUN: %python %p/print_btf.py %t3 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfel -mattr=+alu32 -filetype=obj -o %t2 %t1
+; RUN: llvm-objcopy --dump-section='.BTF'=%t3 %t2
+; RUN: %python %p/print_btf.py %t3 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -mattr=+alu32 -filetype=obj -o %t2 %t1
+; RUN: llvm-objcopy --dump-section='.BTF'=%t3 %t2
+; RUN: %python %p/print_btf.py %t3 | FileCheck -check-prefixes=CHECK-BTF %s
 ; Source code:
 ;   struct s {
 ;     int a;
@@ -19,30 +29,11 @@ entry:
   ret i32 %conv, !dbg !16
 }
 
-; CHECK:             .long   1                               # BTF_KIND_INT(id = 2)
-; CHECK-NEXT:        .long   16777216                        # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                        # 0x1000020
-
-; CHECK:             .long   16                              # BTF_KIND_STRUCT(id = 4)
-; CHECK-NEXT:        .long   67108865                        # 0x4000001
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   18
-; CHECK-NEXT:        .long   2
-
-; CHECK:             .ascii  "int"                           # string offset=1
-; CHECK:             .ascii  ".text"                         # string offset=10
-; CHECK:             .byte   115                             # string offset=16
-; CHECK:             .byte   97                              # string offset=18
-; CHECK:             .byte   48                              # string offset=20
-
-; CHECK:             .long   16                              # FieldReloc
-; CHECK-NEXT:        .long   10                              # Field reloc section string offset=10
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   .Ltmp{{[0-9]+}}
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   20
-; CHECK-NEXT:        .long   7
+; CHECK-BTF:             [1] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [2] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [3] FUNC 'test' type_id=1 linkage=global
+; CHECK-BTF-NEXT:        [4] STRUCT 's' size=4 vlen=1
+; CHECK-BTF-NEXT:                'a' type_id=2 bits_offset=0
 
 ; Function Attrs: nounwind readnone
 declare i64 @llvm.bpf.btf.type.id(i32, i64) #1

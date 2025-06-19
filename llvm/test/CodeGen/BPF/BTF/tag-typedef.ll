@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   #define __tag1 __attribute__((btf_decl_tag("tag1")))
@@ -18,6 +22,21 @@
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!17, !18, !19, !20}
 !llvm.ident = !{!21}
+
+; CHECK-BTF:             [1] TYPEDEF '__s' type_id=3
+; CHECK-BTF-NEXT:        [2] DECL_TAG 'tag1' type_id=1 component_idx=-1
+; CHECK-BTF-NEXT:        [3] STRUCT '(anon)' size=4 vlen=1
+; CHECK-BTF-NEXT:                'a' type_id=4 bits_offset=0
+; CHECK-BTF-NEXT:        [4] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [5] VAR 'a' type_id=1, linkage=global
+; CHECK-BTF-NEXT:        [6] TYPEDEF '__u' type_id=8
+; CHECK-BTF-NEXT:        [7] DECL_TAG 'tag1' type_id=6 component_idx=-1
+; CHECK-BTF-NEXT:        [8] PTR '(anon)' type_id=9
+; CHECK-BTF-NEXT:        [9] INT 'unsigned int' size=4 bits_offset=0 nr_bits=32 encoding=(none)
+; CHECK-BTF-NEXT:        [10] VAR 'u' type_id=6, linkage=global
+; CHECK-BTF-NEXT:        [11] DATASEC '.bss' size=0 vlen=2
+; CHECK-BTF-NEXT:                type_id=5 offset=0 size=4
+; CHECK-BTF-NEXT:                type_id=10 offset=0 size=8
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "a", scope: !2, file: !3, line: 4, type: !12, isLocal: false, isDefinition: true)
@@ -41,47 +60,3 @@
 !19 = !{i32 1, !"wchar_size", i32 4}
 !20 = !{i32 7, !"frame-pointer", i32 2}
 !21 = !{!"clang version 14.0.0 (https://github.com/llvm/llvm-project.git 219b26fbcd70273ddfd4ead9387f7c69b7eb4570)"}
-
-; CHECK:             .long   1                               # BTF_KIND_TYPEDEF(id = 1)
-; CHECK-NEXT:        .long   134217728                       # 0x8000000
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   5                               # BTF_KIND_DECL_TAG(id = 2)
-; CHECK-NEXT:        .long   285212672                       # 0x11000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   4294967295
-; CHECK-NEXT:        .long   0                               # BTF_KIND_STRUCT(id = 3)
-; CHECK-NEXT:        .long   67108865                        # 0x4000001
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   10
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   0                               # 0x0
-; CHECK-NEXT:        .long   12                              # BTF_KIND_INT(id = 4)
-; CHECK-NEXT:        .long   16777216                        # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                        # 0x1000020
-; CHECK-NEXT:        .long   10                              # BTF_KIND_VAR(id = 5)
-; CHECK-NEXT:        .long   234881024                       # 0xe000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   16                              # BTF_KIND_TYPEDEF(id = 6)
-; CHECK-NEXT:        .long   134217728                       # 0x8000000
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   5                               # BTF_KIND_DECL_TAG(id = 7)
-; CHECK-NEXT:        .long   285212672                       # 0x11000000
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   4294967295
-; CHECK-NEXT:        .long   0                               # BTF_KIND_PTR(id = 8)
-; CHECK-NEXT:        .long   33554432                        # 0x2000000
-; CHECK-NEXT:        .long   9
-; CHECK-NEXT:        .long   20                              # BTF_KIND_INT(id = 9)
-; CHECK-NEXT:        .long   16777216                        # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   32                              # 0x20
-
-; CHECK:        .ascii  "__s"                           # string offset=1
-; CHECK:        .ascii  "tag1"                          # string offset=5
-; CHECK:        .byte   97                              # string offset=10
-; CHECK:        .ascii  "int"                           # string offset=12
-; CHECK:        .ascii  "__u"                           # string offset=16
-; CHECK:        .ascii  "unsigned int"                  # string offset=20
-

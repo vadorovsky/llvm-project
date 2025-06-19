@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   double a;
@@ -12,38 +16,10 @@
 !llvm.module.flags = !{!7, !8, !9}
 !llvm.ident = !{!10}
 
-; CHECK:             .section .BTF,"",@progbits
-; CHECK-NEXT:        .short 60319 # 0xeb9f
-; CHECK-NEXT:        .byte 1
-; CHECK-NEXT:        .byte 0
-; CHECK-NEXT:        .long 24
-; CHECK-NEXT:        .long 0
-; CHECK-NEXT:        .long 52
-; CHECK-NEXT:        .long 52
-; CHECK-NEXT:        .long 15
-; [1] double, size=8 bytes (64 bits)
-; CHECK-NEXT:        .long 1 # BTF_KIND_FLOAT(id = 1)
-; CHECK-NEXT:        .long 268435456 # 0x10000000
-; CHECK-NEXT:        .long 8
-; [2] a, type=double (1), global
-; CHECK-NEXT:        .long 8 # BTF_KIND_VAR(id = 2)
-; CHECK-NEXT:        .long 234881024 # 0xe000000
-; CHECK-NEXT:        .long 1
-; CHECK-NEXT:        .long 1
-; [3] .bss, 1 var, {a, offset=&a, size=8 bytes}
-; CHECK-NEXT:        .long 10 # BTF_KIND_DATASEC(id = 3)
-; CHECK-NEXT:        .long 251658241 # 0xf000001
-; CHECK-NEXT:        .long 0
-; CHECK-NEXT:        .long 2
-; CHECK-NEXT:        .long a
-; CHECK-NEXT:        .long 8
-; CHECK-NEXT:        .byte 0 # string offset=0
-; CHECK-NEXT:        .ascii "double" # string offset=1
-; CHECK-NEXT:        .byte 0
-; CHECK-NEXT:        .byte 97 # string offset=8
-; CHECK-NEXT:        .byte 0
-; CHECK-NEXT:        .ascii ".bss" # string offset=10
-; CHECK-NEXT:        .byte 0
+; CHECK-BTF:             [1] FLOAT 'double' size=8
+; CHECK-BTF-NEXT:        [2] VAR 'a' type_id=1, linkage=global
+; CHECK-BTF-NEXT:        [3] DATASEC '.bss' size=0 vlen=1
+; CHECK-BTF-NEXT:                type_id=2 offset=0 size=8
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "a", scope: !2, file: !3, line: 1, type: !6, isLocal: false, isDefinition: true)

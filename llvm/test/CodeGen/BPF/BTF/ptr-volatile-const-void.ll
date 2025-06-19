@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   volatile const ptr p;
@@ -12,25 +16,9 @@
 !llvm.module.flags = !{!9, !10, !11}
 !llvm.ident = !{!12}
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   36
-; CHECK-NEXT:        .long   36
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                       # BTF_KIND_PTR(id = 1)
-; CHECK-NEXT:        .long   33554432                # 0x2000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   0                       # BTF_KIND_CONST(id = 2)
-; CHECK-NEXT:        .long   167772160               # 0xa000000
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   0                       # BTF_KIND_VOLATILE(id = 3)
-; CHECK-NEXT:        .long   150994944               # 0x9000000
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .byte   0                       # string offset=0
+; CHECK-BTF:             [1] PTR '(anon)' type_id=2
+; CHECK-BTF-NEXT:        [2] CONST '(anon)' type_id=3
+; CHECK-BTF-NEXT:        [3] VOLATILE '(anon)' type_id=0
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "p", scope: !2, file: !3, line: 1, type: !6, isLocal: false, isDefinition: true)

@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ;
 ; Source:
 ;   #define __tag1 __attribute__((btf_type_tag("tag1")))
@@ -27,34 +31,15 @@
 !10 = !{!9, !11}
 !11 = !{!"btf_type_tag", !"tag2"}
 
-; CHECK:             .long   1                               # BTF_KIND_TYPE_TAG(id = 1)
-; CHECK-NEXT:        .long   301989888                       # 0x12000000
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   6                               # BTF_KIND_TYPE_TAG(id = 2)
-; CHECK-NEXT:        .long   301989888                       # 0x12000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                               # BTF_KIND_PTR(id = 3)
-; CHECK-NEXT:        .long   33554432                        # 0x2000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   1                               # BTF_KIND_TYPE_TAG(id = 4)
-; CHECK-NEXT:        .long   301989888                       # 0x12000000
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   0                               # BTF_KIND_PTR(id = 5)
-; CHECK-NEXT:        .long   33554432                        # 0x2000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   11                              # BTF_KIND_INT(id = 6)
-; CHECK-NEXT:        .long   16777216                        # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                        # 0x1000020
-; CHECK-NEXT:        .long   15                              # BTF_KIND_VAR(id = 7)
-; CHECK-NEXT:        .long   234881024                       # 0xe000000
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   1
-
-; CHECK:             .ascii  "tag1"                          # string offset=1
-; CHECK:             .ascii  "tag2"                          # string offset=6
-; CHECK:             .ascii  "int"                           # string offset=11
-; CHECK:             .byte   103                             # string offset=15
+; CHECK-BTF:             [1] TYPE_TAG 'tag1' type_id=5
+; CHECK-BTF-NEXT:        [2] TYPE_TAG 'tag2' type_id=1
+; CHECK-BTF-NEXT:        [3] PTR '(anon)' type_id=2
+; CHECK-BTF-NEXT:        [4] TYPE_TAG 'tag1' type_id=6
+; CHECK-BTF-NEXT:        [5] PTR '(anon)' type_id=4
+; CHECK-BTF-NEXT:        [6] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [7] VAR 'g' type_id=3, linkage=global
+; CHECK-BTF-NEXT:        [8] DATASEC '.bss' size=0 vlen=1
+; CHECK-BTF-NEXT:                type_id=7 offset=0 size=8
 
 !12 = !{i32 7, !"Dwarf Version", i32 4}
 !13 = !{i32 2, !"Debug Info Version", i32 3}

@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ;
 ; Source code:
 ;   char g __attribute__((weak)) = 2;
@@ -18,24 +22,13 @@ entry:
   ret i32 %conv, !dbg !19
 }
 
-; CHECK:             .long   55                      # BTF_KIND_INT(id = 4)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   16777224                # 0x1000008
-; CHECK-NEXT:        .long   60                      # BTF_KIND_VAR(id = 5)
-; CHECK-NEXT:        .long   234881024               # 0xe000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   62                      # BTF_KIND_DATASEC(id = 6)
-; CHECK-NEXT:        .long   251658241               # 0xf000001
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   g
-; CHECK-NEXT:        .long   1
-
-; CHECK:             .ascii  "char"                  # string offset=55
-; CHECK:             .byte   103                     # string offset=60
-; CHECK:             .ascii  ".data"                 # string offset=62
+; CHECK-BTF:             [1] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [2] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [3] FUNC 'test' type_id=1 linkage=global
+; CHECK-BTF-NEXT:        [4] INT 'char' size=1 bits_offset=0 nr_bits=8 encoding=SIGNED
+; CHECK-BTF-NEXT:        [5] VAR 'g' type_id=4, linkage=global
+; CHECK-BTF-NEXT:        [6] DATASEC '.data' size=0 vlen=1
+; CHECK-BTF-NEXT:                type_id=5 offset=0 size=1
 
 
 attributes #0 = { norecurse nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

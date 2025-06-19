@@ -1,6 +1,10 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-;
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; 
 ; Source code:
 ;   const volatile char g __attribute__((weak)) = 2;
 ;   int test() {
@@ -19,42 +23,15 @@ entry:
   ret i32 %conv, !dbg !21
 }
 
-; CHECK:             .long   0                               # BTF_KIND_FUNC_PROTO(id = 1)
-; CHECK-NEXT:        .long   218103808                       # 0xd000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   1                               # BTF_KIND_INT(id = 2)
-; CHECK-NEXT:        .long   16777216                        # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                        # 0x1000020
-; CHECK-NEXT:        .long   5                               # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326593                       # 0xc000001
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                               # BTF_KIND_CONST(id = 4)
-; CHECK-NEXT:        .long   167772160                       # 0xa000000
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   0                               # BTF_KIND_VOLATILE(id = 5)
-; CHECK-NEXT:        .long   150994944                       # 0x9000000
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   47                              # BTF_KIND_INT(id = 6)
-; CHECK-NEXT:        .long   16777216                        # 0x1000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   16777224                        # 0x1000008
-; CHECK-NEXT:        .long   52                              # BTF_KIND_VAR(id = 7)
-; CHECK-NEXT:        .long   234881024                       # 0xe000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   54                              # BTF_KIND_DATASEC(id = 8)
-; CHECK-NEXT:        .long   251658241                       # 0xf000001
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   7
-; CHECK-NEXT:        .long   g
-; CHECK-NEXT:        .long   1
-
-; CHECK:             .ascii  "int"                           # string offset=1
-; CHECK:             .ascii  "test"                          # string offset=5
-; CHECK:             .ascii  "char"                          # string offset=47
-; CHECK:             .byte   103                             # string offset=52
-; CHECK:             .ascii  ".rodata"                       # string offset=54
+; CHECK-BTF:             [1] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [2] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [3] FUNC 'test' type_id=1 linkage=global
+; CHECK-BTF-NEXT:        [4] CONST '(anon)' type_id=5
+; CHECK-BTF-NEXT:        [5] VOLATILE '(anon)' type_id=6
+; CHECK-BTF-NEXT:        [6] INT 'char' size=1 bits_offset=0 nr_bits=8 encoding=SIGNED
+; CHECK-BTF-NEXT:        [7] VAR 'g' type_id=4, linkage=global
+; CHECK-BTF-NEXT:        [8] DATASEC '.rodata' size=0 vlen=1
+; CHECK-BTF-NEXT:                type_id=7 offset=0 size=1
 
 attributes #0 = { nofree norecurse nounwind willreturn "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 

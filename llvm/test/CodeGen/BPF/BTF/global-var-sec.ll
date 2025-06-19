@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   int gv1 __attribute__((section("maps")));
@@ -10,45 +14,12 @@
 @gv2 = dso_local local_unnamed_addr global i32 5, section "maps", align 4, !dbg !0
 @gv1 = dso_local local_unnamed_addr global i32 0, section "maps", align 4, !dbg !6
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   84
-; CHECK-NEXT:        .long   84
-; CHECK-NEXT:        .long   18
-; CHECK-NEXT:        .long   1                       # BTF_KIND_INT(id = 1)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   5                       # BTF_KIND_VAR(id = 2)
-; CHECK-NEXT:        .long   234881024               # 0xe000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   9                       # BTF_KIND_VAR(id = 3)
-; CHECK-NEXT:        .long   234881024               # 0xe000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   13                      # BTF_KIND_DATASEC(id = 4)
-; CHECK-NEXT:        .long   251658242               # 0xf000002
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   gv2
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   gv1
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "gv2"                   # string offset=5
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "gv1"                   # string offset=9
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "maps"                  # string offset=13
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [2] VAR 'gv2' type_id=1, linkage=global
+; CHECK-BTF-NEXT:        [3] VAR 'gv1' type_id=1, linkage=global
+; CHECK-BTF-NEXT:        [4] DATASEC 'maps' size=0 vlen=2
+; CHECK-BTF-NEXT:                type_id=2 offset=0 size=4
+; CHECK-BTF-NEXT:                type_id=3 offset=0 size=4
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!9, !10, !11}

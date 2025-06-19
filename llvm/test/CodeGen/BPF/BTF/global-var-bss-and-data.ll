@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   struct s { int i; } __attribute__((aligned(16)));
@@ -38,66 +42,14 @@
 !16 = !{i32 7, !"frame-pointer", i32 2}
 !17 = !{!"clang version 16.0.0 (https://github.com/llvm/llvm-project.git 3191e8e19f1a7007ddd0e55cee60a51a058c99f5)"}
 
-; CHECK:         .section        .BTF,"",@progbits
-; CHECK-NEXT:    .short  60319                           # 0xeb9f
-; CHECK-NEXT:    .byte   1
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .long   24
-; CHECK-NEXT:    .long   0
-; CHECK-NEXT:    .long   148
-; CHECK-NEXT:    .long   148
-; CHECK-NEXT:    .long   26
-; CHECK-NEXT:    .long   1                               # BTF_KIND_STRUCT(id = 1)
-; CHECK-NEXT:    .long   67108865                        # 0x4000001
-; CHECK-NEXT:    .long   16
-; CHECK-NEXT:    .long   3
-; CHECK-NEXT:    .long   2
-; CHECK-NEXT:    .long   0                               # 0x0
-; CHECK-NEXT:    .long   5                               # BTF_KIND_INT(id = 2)
-; CHECK-NEXT:    .long   16777216                        # 0x1000000
-; CHECK-NEXT:    .long   4
-; CHECK-NEXT:    .long   16777248                        # 0x1000020
-; CHECK-NEXT:    .long   9                               # BTF_KIND_VAR(id = 3)
-; CHECK-NEXT:    .long   234881024                       # 0xe000000
-; CHECK-NEXT:    .long   1
-; CHECK-NEXT:    .long   1
-; CHECK-NEXT:    .long   11                              # BTF_KIND_VAR(id = 4)
-; CHECK-NEXT:    .long   234881024                       # 0xe000000
-; CHECK-NEXT:    .long   1
-; CHECK-NEXT:    .long   1
-; CHECK-NEXT:    .long   13                              # BTF_KIND_VAR(id = 5)
-; CHECK-NEXT:    .long   234881024                       # 0xe000000
-; CHECK-NEXT:    .long   1
-; CHECK-NEXT:    .long   1
-; CHECK-NEXT:    .long   15                              # BTF_KIND_DATASEC(id = 6)
-; CHECK-NEXT:    .long   251658242                       # 0xf000002
-; CHECK-NEXT:    .long   0
-; CHECK-NEXT:    .long   3
-; CHECK-NEXT:    .long   a
-; CHECK-NEXT:    .long   16
-; CHECK-NEXT:    .long   4
-; CHECK-NEXT:    .long   b
-; CHECK-NEXT:    .long   16
-; CHECK-NEXT:    .long   20                              # BTF_KIND_DATASEC(id = 7)
-; CHECK-NEXT:    .long   251658241                       # 0xf000001
-; CHECK-NEXT:    .long   0
-; CHECK-NEXT:    .long   5
-; CHECK-NEXT:    .long   c
-; CHECK-NEXT:    .long   16
-; CHECK-NEXT:    .byte   0                               # string offset=0
-; CHECK-NEXT:    .byte   115                             # string offset=1
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .byte   105                             # string offset=3
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .ascii  "int"                           # string offset=5
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .byte   97                              # string offset=9
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .byte   98                              # string offset=11
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .byte   99                              # string offset=13
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .ascii  ".bss"                          # string offset=15
-; CHECK-NEXT:    .byte   0
-; CHECK-NEXT:    .ascii  ".data"                         # string offset=20
-; CHECK-NEXT:    .byte   0
+; CHECK-BTF:      [1] STRUCT 's' size=16 vlen=1
+; CHECK-BTF-NEXT:         'i' type_id=2 bits_offset=0
+; CHECK-BTF-NEXT: [2] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT: [3] VAR 'a' type_id=1, linkage=global
+; CHECK-BTF-NEXT: [4] VAR 'b' type_id=1, linkage=global
+; CHECK-BTF-NEXT: [5] VAR 'c' type_id=1, linkage=global
+; CHECK-BTF-NEXT: [6] DATASEC '.bss' size=0 vlen=2
+; CHECK-BTF-NEXT:         type_id=3 offset=0 size=16
+; CHECK-BTF-NEXT:         type_id=4 offset=0 size=16
+; CHECK-BTF-NEXT: [7] DATASEC '.data' size=0 vlen=1
+; CHECK-BTF-NEXT:         type_id=5 offset=0 size=16

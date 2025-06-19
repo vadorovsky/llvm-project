@@ -1,6 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ; Source code:
 ;   struct t {
 ;     int a;
@@ -20,89 +23,20 @@ define dso_local i32 @test() local_unnamed_addr #0 !dbg !21 {
   ret i32 %1, !dbg !29
 }
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   196
-; CHECK-NEXT:        .long   196
-; CHECK-NEXT:        .long   95
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 1)
-; CHECK-NEXT:        .long   218103808               # 0xd000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   1                       # BTF_KIND_INT(id = 2)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   5                       # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326593               # 0xc000001
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                       # BTF_KIND_VOLATILE(id = 4)
-; CHECK-NEXT:        .long   150994944               # 0x9000000
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   53                      # BTF_KIND_STRUCT(id = 5)
-; CHECK-NEXT:        .long   67108867                # 0x4000003
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   55
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   0                       # 0x0
-; CHECK-NEXT:        .long   57
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   32                      # 0x20
-; CHECK-NEXT:        .long   59
-; CHECK-NEXT:        .long   7
-; CHECK-NEXT:        .long   64                      # 0x40
-; CHECK-NEXT:        .long   61                      # BTF_KIND_INT(id = 6)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   16777224                # 0x1000008
-; CHECK-NEXT:        .long   0                       # BTF_KIND_ARRAY(id = 7)
-; CHECK-NEXT:        .long   50331648                # 0x3000000
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   66                      # BTF_KIND_INT(id = 8)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   32                      # 0x20
-; CHECK-NEXT:        .long   86                      # BTF_KIND_VAR(id = 9)
-; CHECK-NEXT:        .long   234881024               # 0xe000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   89                      # BTF_KIND_DATASEC(id = 10)
-; CHECK-NEXT:        .long   251658241               # 0xf000001
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   9
-; CHECK-NEXT:        .long   sv
-; CHECK-NEXT:        .long   20
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "test"                  # string offset=5
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=10
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/home/yhs/work/tests/llvm/bug/test.c" # string offset=16
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   116                     # string offset=53
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   97                      # string offset=55
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   98                      # string offset=57
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   99                      # string offset=59
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "char"                  # string offset=61
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "__ARRAY_SIZE_TYPE__"   # string offset=66
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "sv"                    # string offset=86
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  ".data"                 # string offset=89
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [2] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [3] FUNC 'test' type_id=1 linkage=global
+; CHECK-BTF-NEXT:        [4] VOLATILE '(anon)' type_id=5
+; CHECK-BTF-NEXT:        [5] STRUCT 't' size=8 vlen=3
+; CHECK-BTF-NEXT:                'a' type_id=2 bits_offset=0
+; CHECK-BTF-NEXT:                'b' type_id=2 bits_offset=32
+; CHECK-BTF-NEXT:                'c' type_id=7 bits_offset=64
+; CHECK-BTF-NEXT:        [6] INT 'char' size=1 bits_offset=0 nr_bits=8 encoding=SIGNED
+; CHECK-BTF-NEXT:        [7] ARRAY '(anon)' type_id=6 index_type_id=8 nr_elems=0
+; CHECK-BTF-NEXT:        [8] INT '__ARRAY_SIZE_TYPE__' size=4 bits_offset=0 nr_bits=32 encoding=(none)
+; CHECK-BTF-NEXT:        [9] VAR 'sv' type_id=4, linkage=static
+; CHECK-BTF-NEXT:        [10] DATASEC '.data' size=0 vlen=1
+; CHECK-BTF-NEXT:                type_id=9 offset=0 size=20
 
 attributes #0 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 

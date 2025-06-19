@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   struct key_type {
@@ -19,78 +23,19 @@
 
 @hash_map = dso_local local_unnamed_addr global %struct.map_type zeroinitializer, section ".maps", align 8, !dbg !0
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   168
-; CHECK-NEXT:        .long   168
-; CHECK-NEXT:        .long   65
-; CHECK-NEXT:        .long   0                       # BTF_KIND_PTR(id = 1)
-; CHECK-NEXT:        .long   33554432                # 0x2000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   1                       # BTF_KIND_STRUCT(id = 2)
-; CHECK-NEXT:        .long   67108866                # 0x4000002
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   10
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   0                       # 0x0
-; CHECK-NEXT:        .long   12
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   32                      # 0x20
-; CHECK-NEXT:        .long   14                      # BTF_KIND_INT(id = 3)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   0                       # BTF_KIND_PTR(id = 4)
-; CHECK-NEXT:        .long   33554432                # 0x2000000
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   18                      # BTF_KIND_INT(id = 5)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   32                      # 0x20
-; CHECK-NEXT:        .long   31                      # BTF_KIND_STRUCT(id = 6)
-; CHECK-NEXT:        .long   67108866                # 0x4000002
-; CHECK-NEXT:        .long   16
-; CHECK-NEXT:        .long   40
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                       # 0x0
-; CHECK-NEXT:        .long   44
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   64                      # 0x40
-; CHECK-NEXT:        .long   50                      # BTF_KIND_VAR(id = 7)
-; CHECK-NEXT:        .long   234881024               # 0xe000000
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   59                      # BTF_KIND_DATASEC(id = 8)
-; CHECK-NEXT:        .long   251658241               # 0xf000001
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   7
-; CHECK-NEXT:        .long   hash_map
-; CHECK-NEXT:        .long   16
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "key_type"              # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   97                      # string offset=10
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   98                      # string offset=12
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=14
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "unsigned int"          # string offset=18
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "map_type"              # string offset=31
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "key"                   # string offset=40
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "value"                 # string offset=44
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "hash_map"              # string offset=50
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  ".maps"                 # string offset=59
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] PTR '(anon)' type_id=2
+; CHECK-BTF-NEXT:        [2] STRUCT 'key_type' size=8 vlen=2
+; CHECK-BTF-NEXT:                'a' type_id=3 bits_offset=0
+; CHECK-BTF-NEXT:                'b' type_id=3 bits_offset=32
+; CHECK-BTF-NEXT:        [3] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [4] PTR '(anon)' type_id=5
+; CHECK-BTF-NEXT:        [5] INT 'unsigned int' size=4 bits_offset=0 nr_bits=32 encoding=(none)
+; CHECK-BTF-NEXT:        [6] STRUCT 'map_type' size=16 vlen=2
+; CHECK-BTF-NEXT:                'key' type_id=1 bits_offset=0
+; CHECK-BTF-NEXT:                'value' type_id=4 bits_offset=64
+; CHECK-BTF-NEXT:        [7] VAR 'hash_map' type_id=6, linkage=global
+; CHECK-BTF-NEXT:        [8] DATASEC '.maps' size=0 vlen=1
+; CHECK-BTF-NEXT:                type_id=7 offset=0 size=16
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!18, !19, !20}

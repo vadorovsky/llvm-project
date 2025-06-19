@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   enum t1 { A , B };
@@ -15,44 +19,12 @@
 !llvm.module.flags = !{!15, !16, !17}
 !llvm.ident = !{!18}
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   64
-; CHECK-NEXT:        .long   64
-; CHECK-NEXT:        .long   15
-; CHECK-NEXT:        .long   1                       # BTF_KIND_STRUCT(id = 1)
-; CHECK-NEXT:        .long   2214592514              # 0x84000002
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   33554432                # 0x2000000
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   32                      # 0x20
-; CHECK-NEXT:        .long   8                       # BTF_KIND_ENUM(id = 2)
-; CHECK-NEXT:        .long   100663298               # 0x6000002
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   11
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   13
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "t2"                    # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   109                     # string offset=4
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   110                     # string offset=6
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "t1"                    # string offset=8
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   65                      # string offset=11
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   66                      # string offset=13
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] STRUCT 't2' size=8 vlen=2
+; CHECK-BTF-NEXT:                'm' type_id=2 bits_offset=0 bitfield_size=2
+; CHECK-BTF-NEXT:                'n' type_id=2 bits_offset=32 bitfield_size=0
+; CHECK-BTF-NEXT:        [2] ENUM 't1' encoding=UNSIGNED size=4 vlen=2
+; CHECK-BTF-NEXT:                'A' val=0
+; CHECK-BTF-NEXT:                'B' val=1
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "a", scope: !2, file: !3, line: 2, type: !11, isLocal: false, isDefinition: true)

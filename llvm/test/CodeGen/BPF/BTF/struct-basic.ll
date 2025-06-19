@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   struct t1 {char m1; int n1;} a;
@@ -14,43 +18,11 @@
 !llvm.module.flags = !{!12, !13, !14}
 !llvm.ident = !{!15}
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   68
-; CHECK-NEXT:        .long   68
-; CHECK-NEXT:        .long   19
-; CHECK-NEXT:        .long   1                       # BTF_KIND_STRUCT(id = 1)
-; CHECK-NEXT:        .long   67108866                # 0x4000002
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   7
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   32
-; CHECK-NEXT:        .long   10                      # BTF_KIND_INT(id = 2)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   16777224                # 0x1000008
-; CHECK-NEXT:        .long   15                      # BTF_KIND_INT(id = 3)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "t1"                    # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "m1"                    # string offset=4
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "n1"                    # string offset=7
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "char"                  # string offset=10
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=15
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] STRUCT 't1' size=8 vlen=2
+; CHECK-BTF-NEXT:                'm1' type_id=2 bits_offset=0
+; CHECK-BTF-NEXT:                'n1' type_id=3 bits_offset=32
+; CHECK-BTF-NEXT:        [2] INT 'char' size=1 bits_offset=0 nr_bits=8 encoding=SIGNED
+; CHECK-BTF-NEXT:        [3] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "a", scope: !2, file: !3, line: 1, type: !6, isLocal: false, isDefinition: true)

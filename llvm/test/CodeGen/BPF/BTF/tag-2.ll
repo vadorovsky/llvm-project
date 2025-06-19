@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   #define __tag1 __attribute__((btf_decl_tag("tag1")))
@@ -38,6 +42,21 @@ attributes #3 = { nounwind }
 !llvm.module.flags = !{!3, !4, !5, !6}
 !llvm.ident = !{!7}
 
+; CHECK-BTF:             [1] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [2] PTR '(anon)' type_id=1
+; CHECK-BTF-NEXT:        [3] FUNC_PROTO '(anon)' ret_type_id=1 vlen=2
+; CHECK-BTF-NEXT:                'arg1' type_id=1
+; CHECK-BTF-NEXT:                'arg2' type_id=2
+; CHECK-BTF-NEXT:        [4] FUNC 'foo' type_id=3 linkage=global
+; CHECK-BTF-NEXT:        [5] DECL_TAG 'tag1' type_id=4 component_idx=1
+; CHECK-BTF-NEXT:        [6] DECL_TAG 'tag1' type_id=4 component_idx=-1
+; CHECK-BTF-NEXT:        [7] FUNC_PROTO '(anon)' ret_type_id=1 vlen=2
+; CHECK-BTF-NEXT:                '(anon)' type_id=1
+; CHECK-BTF-NEXT:                '(anon)' type_id=1
+; CHECK-BTF-NEXT:        [8] FUNC 'bar' type_id=7 linkage=extern
+; CHECK-BTF-NEXT:        [9] DECL_TAG 'tag1' type_id=8 component_idx=-1
+; CHECK-BTF-NEXT:        [10] DECL_TAG 'tag2' type_id=8 component_idx=-1
+
 !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 14.0.0 (https://github.com/llvm/llvm-project.git 4be11596b26383c6666f471f07463a3f79e11964)", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, splitDebugInlining: false, nameTableKind: None)
 !1 = !DIFile(filename: "t.c", directory: "/tmp/home/yhs/work/tests/llvm/btf_tag")
 !2 = !{}
@@ -72,55 +91,3 @@ attributes #3 = { nounwind }
 !31 = !{!11, !11, !11}
 !32 = !{!17, !33}
 !33 = !{!"btf_decl_tag", !"tag2"}
-
-; CHECK:             .long   1                               # BTF_KIND_INT(id = 1)
-; CHECK-NEXT:        .long   16777216                        # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                        # 0x1000020
-; CHECK-NEXT:        .long   0                               # BTF_KIND_PTR(id = 2)
-; CHECK-NEXT:        .long   33554432                        # 0x2000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                               # BTF_KIND_FUNC_PROTO(id = 3)
-; CHECK-NEXT:        .long   218103810                       # 0xd000002
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   10
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   15                              # BTF_KIND_FUNC(id = 4)
-; CHECK-NEXT:        .long   201326593                       # 0xc000001
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   19                              # BTF_KIND_DECL_TAG(id = 5)
-; CHECK-NEXT:        .long   285212672                       # 0x11000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   19                              # BTF_KIND_DECL_TAG(id = 6)
-; CHECK-NEXT:        .long   285212672                       # 0x11000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   4294967295
-; CHECK-NEXT:        .long   0                               # BTF_KIND_FUNC_PROTO(id = 7)
-; CHECK-NEXT:        .long   218103810                       # 0xd000002
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   72                              # BTF_KIND_FUNC(id = 8)
-; CHECK-NEXT:        .long   201326594                       # 0xc000002
-; CHECK-NEXT:        .long   7
-; CHECK-NEXT:        .long   19                              # BTF_KIND_DECL_TAG(id = 9)
-; CHECK-NEXT:        .long   285212672                       # 0x11000000
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   4294967295
-; CHECK-NEXT:        .long   76                              # BTF_KIND_DECL_TAG(id = 10)
-; CHECK-NEXT:        .long   285212672                       # 0x11000000
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   4294967295
-
-; CHECK:             .ascii  "int"                           # string offset=1
-; CHECK:             .ascii  "arg1"                          # string offset=5
-; CHECK:             .ascii  "arg2"                          # string offset=10
-; CHECK:             .ascii  "foo"                           # string offset=15
-; CHECK:             .ascii  "tag1"                          # string offset=19
-; CHECK:             .ascii  "bar"                           # string offset=72
-; CHECK:             .ascii  "tag2"                          # string offset=76

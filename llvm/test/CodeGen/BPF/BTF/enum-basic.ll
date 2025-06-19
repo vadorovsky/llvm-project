@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   enum { A = -1, B = 2 } a;
@@ -12,27 +16,9 @@
 !llvm.module.flags = !{!11, !12, !13}
 !llvm.ident = !{!14}
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   28
-; CHECK-NEXT:        .long   28
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   0                       # BTF_KIND_ENUM(id = 1)
-; CHECK-NEXT:        .long   2248146946              # 0x86000002
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   -1
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .byte   65                      # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   66                      # string offset=3
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] ENUM '(anon)' encoding=SIGNED size=4 vlen=2
+; CHECK-BTF-NEXT:                'A' val=-1
+; CHECK-BTF-NEXT:                'B' val=2
 
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "a", scope: !2, file: !3, line: 1, type: !5, isLocal: false, isDefinition: true)

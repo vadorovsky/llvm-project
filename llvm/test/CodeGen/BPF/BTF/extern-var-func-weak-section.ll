@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ;
 ; Source code:
 ;   extern int global_func(char c) __attribute__((weak, section("abc")));
@@ -17,57 +21,15 @@ entry:
 }
 declare !dbg !4 extern_weak dso_local i32 @global_func(i8 signext) local_unnamed_addr #1 section "abc"
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   112
-; CHECK-NEXT:        .long   112
-; CHECK-NEXT:        .long   76
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 1)
-; CHECK-NEXT:        .long   218103808               # 0xd000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   1                       # BTF_KIND_INT(id = 2)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   5                       # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326593               # 0xc000001
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 4)
-; CHECK-NEXT:        .long   218103809               # 0xd000001
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   55                      # BTF_KIND_INT(id = 5)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   16777224                # 0x1000008
-; CHECK-NEXT:        .long   60                      # BTF_KIND_FUNC(id = 6)
-; CHECK-NEXT:        .long   201326594               # 0xc000002
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   72                      # BTF_KIND_DATASEC(id = 7)
-; CHECK-NEXT:        .long   251658241               # 0xf000001
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   6
-; CHECK-NEXT:        .long   global_func
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "test"                  # string offset=5
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=10
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/tmp/home/yhs/work/tests/extern/test.c" # string offset=16
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "char"                  # string offset=55
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "global_func"           # string offset=60
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "abc"                   # string offset=72
+; CHECK-BTF:             [1] FUNC_PROTO '(anon)' ret_type_id=2 vlen=0
+; CHECK-BTF-NEXT:        [2] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [3] FUNC 'test' type_id=1 linkage=global
+; CHECK-BTF-NEXT:        [4] FUNC_PROTO '(anon)' ret_type_id=2 vlen=1
+; CHECK-BTF-NEXT:                '(anon)' type_id=5
+; CHECK-BTF-NEXT:        [5] INT 'char' size=1 bits_offset=0 nr_bits=8 encoding=SIGNED
+; CHECK-BTF-NEXT:        [6] FUNC 'global_func' type_id=4 linkage=extern
+; CHECK-BTF-NEXT:        [7] DATASEC 'abc' size=0 vlen=1
+; CHECK-BTF-NEXT:                type_id=6 offset=0 size=0
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 ; Source code:
 ;   unsigned long long load_byte(ptr skb,
 ;       unsigned long long off) asm("llvm.bpf.load.byte");
@@ -17,41 +21,11 @@ entry:
   ret i64 %call, !dbg !20
 }
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   60
-; CHECK-NEXT:        .long   60
-; CHECK-NEXT:        .long   78
-; CHECK-NEXT:        .long   0                       # BTF_KIND_PTR(id = 1)
-; CHECK-NEXT:        .long   33554432                # 0x2000000
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 2)
-; CHECK-NEXT:        .long   218103809               # 0xd000001
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   5                       # BTF_KIND_INT(id = 3)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   8
-; CHECK-NEXT:        .long   64                      # 0x40
-; CHECK-NEXT:        .long   28                      # BTF_KIND_FUNC(id = 4)
-; CHECK-NEXT:        .long   201326593               # 0xc000001
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "skb"                   # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "long long unsigned int" # string offset=5
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "test"                  # string offset=28
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=33
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/tmp/home/yhs/work/tests/extern/test.c" # string offset=39
-; CHECK-NEXT:        .byte   0
+; CHECK-BTF:             [1] PTR '(anon)' type_id=0
+; CHECK-BTF-NEXT:        [2] FUNC_PROTO '(anon)' ret_type_id=3 vlen=1
+; CHECK-BTF-NEXT:                'skb' type_id=1
+; CHECK-BTF-NEXT:        [3] INT 'long long unsigned int' size=8 bits_offset=0 nr_bits=64 encoding=(none)
+; CHECK-BTF-NEXT:        [4] FUNC 'test' type_id=2 linkage=global
 
 ; Function Attrs: nounwind readonly
 declare !dbg !4 i64 @llvm.bpf.load.byte(ptr, i64) #1

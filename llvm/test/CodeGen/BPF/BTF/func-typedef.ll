@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -mtriple=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mtriple=bpfel -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
+; RUN: llc -mtriple=bpfeb -filetype=obj -o %t1 %s
+; RUN: llvm-objcopy --dump-section='.BTF'=%t2 %t1
+; RUN: %python %p/print_btf.py %t2 | FileCheck -check-prefixes=CHECK-BTF %s
 
 ; Source code:
 ;   typedef int _int;
@@ -15,76 +19,12 @@ entry:
   ret i32 %a, !dbg !16
 }
 
-; CHECK:             .section        .BTF,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   72
-; CHECK-NEXT:        .long   72
-; CHECK-NEXT:        .long   35
-; CHECK-NEXT:        .long   1                       # BTF_KIND_TYPEDEF(id = 1)
-; CHECK-NEXT:        .long   134217728               # 0x8000000
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   7                       # BTF_KIND_TYPEDEF(id = 2)
-; CHECK-NEXT:        .long   134217728               # 0x8000000
-; CHECK-NEXT:        .long   3
-; CHECK-NEXT:        .long   12                      # BTF_KIND_INT(id = 3)
-; CHECK-NEXT:        .long   16777216                # 0x1000000
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .long   16777248                # 0x1000020
-; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 4)
-; CHECK-NEXT:        .long   218103809               # 0xd000001
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   16
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   18                      # BTF_KIND_FUNC(id = 5)
-; CHECK-NEXT:        .long   201326593               # 0xc000001
-; CHECK-NEXT:        .long   4
-; CHECK-NEXT:        .byte   0                       # string offset=0
-; CHECK-NEXT:        .ascii  "__int"                 # string offset=1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "_int"                  # string offset=7
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "int"                   # string offset=12
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   97                      # string offset=16
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .byte   102                     # string offset=18
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  ".text"                 # string offset=20
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .ascii  "/tmp/t.c"              # string offset=26
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .section        .BTF.ext,"",@progbits
-; CHECK-NEXT:        .short  60319                   # 0xeb9f
-; CHECK-NEXT:        .byte   1
-; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   32
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   20
-; CHECK-NEXT:        .long   20
-; CHECK-NEXT:        .long   44
-; CHECK-NEXT:        .long   64
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   8                       # FuncInfo
-; CHECK-NEXT:        .long   20                      # FuncInfo section string offset=20
-; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   .Lfunc_begin0
-; CHECK-NEXT:        .long   5
-; CHECK-NEXT:        .long   16                      # LineInfo
-; CHECK-NEXT:        .long   20                      # LineInfo section string offset=20
-; CHECK-NEXT:        .long   2
-; CHECK-NEXT:        .long   .Lfunc_begin0
-; CHECK-NEXT:        .long   26
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   3072                    # Line 3 Col 0
-; CHECK-NEXT:        .long   .Ltmp{{[0-9]+}}
-; CHECK-NEXT:        .long   26
-; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   3092                    # Line 3 Col 20
-
+; CHECK-BTF:             [1] TYPEDEF '__int' type_id=2
+; CHECK-BTF-NEXT:        [2] TYPEDEF '_int' type_id=3
+; CHECK-BTF-NEXT:        [3] INT 'int' size=4 bits_offset=0 nr_bits=32 encoding=SIGNED
+; CHECK-BTF-NEXT:        [4] FUNC_PROTO '(anon)' ret_type_id=1 vlen=1
+; CHECK-BTF-NEXT:                'a' type_id=1
+; CHECK-BTF-NEXT:        [5] FUNC 'f' type_id=4 linkage=global
 
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1

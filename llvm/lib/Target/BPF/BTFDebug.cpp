@@ -93,7 +93,18 @@ void BTFTypeDerived::completeType(BTFDebug &BDebug) {
     return;
   IsCompleted = true;
 
-  BTFType.NameOff = BDebug.addString(Name);
+  switch (Kind) {
+  case BTF::BTF_KIND_PTR:
+  case BTF::BTF_KIND_CONST:
+  case BTF::BTF_KIND_VOLATILE:
+  case BTF::BTF_KIND_RESTRICT:
+    // Do not emit names for these types.
+    BTFType.NameOff = 0;
+    break;
+  default:
+    BTFType.NameOff = BDebug.addString(Name);
+    break;
+  }
 
   if (NeedsFixup || !DTy)
     return;

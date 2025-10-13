@@ -298,8 +298,8 @@ void BTFTypeArray::emitType(MCStreamer &OS) {
 
 /// Represent either a struct or a union.
 BTFTypeStruct::BTFTypeStruct(const DICompositeType *STy, bool IsStruct,
-                             bool HasBitField, uint32_t Vlen)
-    : STy(STy), HasBitField(HasBitField) {
+                             bool HasBitField, uint32_t Vlen, bool StripName)
+    : STy(STy), HasBitField(HasBitField), StripName(StripName) {
   Kind = IsStruct ? BTF::BTF_KIND_STRUCT : BTF::BTF_KIND_UNION;
   BTFType.Size = roundupToBytes(STy->getSizeInBits());
   BTFType.Info = (HasBitField << 31) | (Kind << 24) | Vlen;
@@ -310,7 +310,10 @@ void BTFTypeStruct::completeType(BTFDebug &BDebug) {
     return;
   IsCompleted = true;
 
-  BTFType.NameOff = BDebug.addString(STy->getName());
+  if (StripName)
+    BTFType.NameOff = 0;
+  else
+    BTFType.NameOff = BDebug.addString(STy->getName());
 
   // Add struct/union members.
   const DINodeArray Elements = STy->getElements();
@@ -680,7 +683,7 @@ int BTFDebug::genBTFTypeTags(const DIDerivedType *DTy, int BaseTypeId) {
 
 /// Handle structure/union types.
 void BTFDebug::visitStructType(const DICompositeType *CTy, bool IsStruct,
-                               uint32_t &TypeId) {
+                               uint32_t &TypeId, bool StripName) {
   const DINodeArray Elements = CTy->getElements();
   uint32_t VLen = Elements.size();
   if (VLen > BTF::MAX_VLEN)
@@ -697,7 +700,8 @@ void BTFDebug::visitStructType(const DICompositeType *CTy, bool IsStruct,
   }
 
   auto TypeEntry =
-      std::make_unique<BTFTypeStruct>(CTy, IsStruct, HasBitField, VLen);
+      std::make_unique<BTFTypeStruct>(CTy, IsStruct, HasBitField, VLen,
+                                      StripName);
   StructTypes.push_back(TypeEntry.get());
   TypeId = addType(std::move(TypeEntry), CTy);
 
@@ -718,7 +722,7 @@ void BTFDebug::visitArrayType(const DICompositeType *CTy, uint32_t &TypeId) {
   // Visit array element type.
   uint32_t ElemTypeId;
   const DIType *ElemType = CTy->getBaseType();
-  visitTypeEntry(ElemType, ElemTypeId, false, false);
+  visitTypeEntry(ElemType, ElemTypeId, false, false, false);
 
   // Visit array dimensions.
   DINodeArray Elements = CTy->getElements();
@@ -790,14 +794,14 @@ void BTFDebug::visitFwdDeclType(const DICompositeType *CTy, bool IsUnion,
 
 /// Handle structure, union, array and enumeration types.
 void BTFDebug::visitCompositeType(const DICompositeType *CTy,
-                                  uint32_t &TypeId) {
+                                  uint32_t &TypeId, bool StripName) {
   auto Tag = CTy->getTag();
   if (Tag == dwarf::DW_TAG_structure_type || Tag == dwarf::DW_TAG_union_type) {
     // Handle forward declaration differently as it does not have members.
     if (CTy->isForwardDecl())
       visitFwdDeclType(CTy, Tag == dwarf::DW_TAG_union_type, TypeId);
     else
-      visitStructType(CTy, Tag == dwarf::DW_TAG_structure_type, TypeId);
+      visitStructType(CTy, Tag == dwarf::DW_TAG_structure_type, TypeId, StripName);
   } else if (Tag == dwarf::DW_TAG_array_type)
     visitArrayType(CTy, TypeId);
   else if (Tag == dwarf::DW_TAG_enumeration_type)
@@ -822,7 +826,7 @@ void BTFDebug::visitDerivedType(const DIDerivedType *DTy, uint32_t &TypeId,
 
   if (Tag == dwarf::DW_TAG_atomic_type)
     return visitTypeEntry(DTy->getBaseType(), TypeId, CheckPointer,
-                          SeenPointer);
+                          SeenPointer, false);
 
   /// Try to avoid chasing pointees, esp. structure pointees which may
   /// unnecessary bring in a lot of types.
@@ -871,9 +875,10 @@ void BTFDebug::visitDerivedType(const DIDerivedType *DTy, uint32_t &TypeId,
   // struct/union member.
   uint32_t TempTypeId = 0;
   if (Tag == dwarf::DW_TAG_member)
-    visitTypeEntry(DTy->getBaseType(), TempTypeId, true, false);
+    visitTypeEntry(DTy->getBaseType(), TempTypeId, true, false, false);
   else
-    visitTypeEntry(DTy->getBaseType(), TempTypeId, CheckPointer, SeenPointer);
+    visitTypeEntry(DTy->getBaseType(), TempTypeId, CheckPointer, SeenPointer,
+                   false);
 }
 
 /// Visit a type entry. CheckPointer is true if the type has
@@ -884,7 +889,8 @@ void BTFDebug::visitDerivedType(const DIDerivedType *DTy, uint32_t &TypeId,
 /// will not be emitted in BTF and rather forward declarations
 /// will be generated.
 void BTFDebug::visitTypeEntry(const DIType *Ty, uint32_t &TypeId,
-                              bool CheckPointer, bool SeenPointer) {
+                              bool CheckPointer, bool SeenPointer,
+                              bool StripName) {
   if (!Ty || DIToIdMap.find(Ty) != DIToIdMap.end()) {
     TypeId = DIToIdMap[Ty];
 
@@ -934,7 +940,8 @@ void BTFDebug::visitTypeEntry(const DIType *Ty, uint32_t &TypeId,
                 break;
             }
             uint32_t TmpTypeId;
-            visitTypeEntry(BaseTy, TmpTypeId, CheckPointer, SeenPointer);
+            visitTypeEntry(BaseTy, TmpTypeId, CheckPointer, SeenPointer,
+                           StripName);
             break;
           }
         }
@@ -950,7 +957,7 @@ void BTFDebug::visitTypeEntry(const DIType *Ty, uint32_t &TypeId,
     visitSubroutineType(STy, false, std::unordered_map<uint32_t, StringRef>(),
                         TypeId);
   else if (const auto *CTy = dyn_cast<DICompositeType>(Ty))
-    visitCompositeType(CTy, TypeId);
+    visitCompositeType(CTy, TypeId, StripName);
   else if (const auto *DTy = dyn_cast<DIDerivedType>(Ty))
     visitDerivedType(DTy, TypeId, CheckPointer, SeenPointer);
   else
@@ -959,7 +966,7 @@ void BTFDebug::visitTypeEntry(const DIType *Ty, uint32_t &TypeId,
 
 void BTFDebug::visitTypeEntry(const DIType *Ty) {
   uint32_t TypeId;
-  visitTypeEntry(Ty, TypeId, false, false);
+  visitTypeEntry(Ty, TypeId, false, false, false);
 }
 
 void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
@@ -968,6 +975,7 @@ void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
     return;
   }
 
+  bool StripName = true;
   uint32_t TmpId;
   switch (Ty->getTag()) {
   case dwarf::DW_TAG_typedef:
@@ -997,6 +1005,8 @@ void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
       const auto *MemberCTy = dyn_cast<DICompositeType>(MemberBaseType);
       if (MemberCTy) {
         visitMapDefType(MemberBaseType, TmpId);
+        // Don't strip the name of the wrapper.
+        StripName = false;
       } else {
         visitTypeEntry(MemberBaseType);
       }
@@ -1008,7 +1018,7 @@ void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
   }
 
   // Visit this type, struct or a const/typedef/volatile/restrict type
-  visitTypeEntry(Ty, TypeId, false, false);
+  visitTypeEntry(Ty, TypeId, false, false, StripName);
 }
 
 /// Read file contents from the actual file or from the source
@@ -1284,7 +1294,7 @@ void BTFDebug::endFunctionImpl(const MachineFunction *MF) {
 /// accessing or preserve debuginfo type.
 unsigned BTFDebug::populateType(const DIType *Ty) {
   unsigned Id;
-  visitTypeEntry(Ty, Id, false, false);
+  visitTypeEntry(Ty, Id, false, false, false);
   for (const auto &TypeEntry : TypeEntries)
     TypeEntry->completeType(*this);
   return Id;
@@ -1483,7 +1493,7 @@ void BTFDebug::processGlobals(bool ProcessingMapDef) {
         visitMapDefType(DIGlobal->getType(), GVTypeId);
       else {
         const DIType *Ty = tryRemoveAtomicType(DIGlobal->getType());
-        visitTypeEntry(Ty, GVTypeId, false, false);
+        visitTypeEntry(Ty, GVTypeId, false, false, false);
       }
       break;
     }

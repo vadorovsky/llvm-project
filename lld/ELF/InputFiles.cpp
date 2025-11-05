@@ -19,6 +19,7 @@
 #include "lld/Common/DWARF.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/IRObjectFile.h"
@@ -1762,6 +1763,9 @@ static uint16_t getBitcodeMachineKind(Ctx &ctx, StringRef path,
     return EM_ARM;
   case Triple::avr:
     return EM_AVR;
+  case Triple::bpfeb:
+  case Triple::bpfel:
+    return EM_BPF;
   case Triple::hexagon:
     return EM_HEXAGON;
   case Triple::loongarch32:

@@ -2257,3 +2257,12 @@ def WasmSystemLibrary
       (add DefaultRuntimeLibcallImpls, Int128RTLibcalls,
            CompilerRTOnlyInt64Libcalls, CompilerRTOnlyInt128Libcalls,
            emscripten_return_address)>;
+
+//===----------------------------------------------------------------------===//
+// BPF Runtime Libcalls
+//===----------------------------------------------------------------------===//
+
+def isBPF : RuntimeLibcallPredicate<"TT.isBPF()">;
+
+// No calls.
+def BPFSystemLibrary : SystemRuntimeLibrary<isBPF, (add)>;

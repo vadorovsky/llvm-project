@@ -796,9 +796,9 @@ function(llvm_add_library name)
         )
     endif()
 
-    # Set SOVERSION on shared libraries that lack explicit SONAME
-    # specifier, on *nix systems that are not Darwin.
-    if(UNIX AND NOT APPLE AND NOT ARG_SONAME)
+    # On *nix systems, set SOVERSION on shared libraries that lack explicit
+    # SONAME specifier.
+    if(UNIX AND NOT ARG_SONAME)
       set_target_properties(${name}
         PROPERTIES
         # Since 18.1.0, the ABI version is indicated by the major and minor version.
